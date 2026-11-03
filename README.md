@@ -19,7 +19,7 @@ Open your Terminal app and cd (change directory) to where you like to keep githu
 
 ``` shell
 git clone https://github.com/SpikeInterface/SpikeInterface-Training-OpenLabOnline-Oct26.git
-cd SpikeInterface-Training-OpenLabOnline-Oct26/notebooks/
+cd SpikeInterface-Training-OpenLabOnline-Oct26/
 ```
 
 Now open jupyter lab (you don't need to install this - uv will take care of it) using uv:

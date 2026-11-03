@@ -1,0 +1,12 @@
+[project]
+name = "notebooks"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "jupyterlab>=4.4.7",
+    "spikeinterface[full,widgets,lupin]>=0.105.2",
+    "spikeinterface-gui[desktop,web]",
+    "pandas>=3.0.6",
+]
