@@ -2,6 +2,10 @@
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Judananas = "4b28b085-a618-4eae-b735-915accc87ad2"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+SavitzkyGolay = "c4bf5708-b6a6-4fbe-bcd0-6850ed671584"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+ZetaJu = "dd40de37-8764-4150-a62f-f28d545bc196"
 
 [sources]
-Judananas = {url = "https://github.com/PierreLeMerre/Judananas.jl.git", rev = "main"}
+Judananas = {rev = "main", url = "https://github.com/PierreLeMerre/Judananas.jl.git"}
+ZetaJu = {rev = "main", url = "https://github.com/PierreLeMerre/ZetaJu"}
