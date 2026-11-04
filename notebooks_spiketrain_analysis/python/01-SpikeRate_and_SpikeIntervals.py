@@ -143,7 +143,7 @@ trials
 # but you can also come up with your own set of filters:
 #
 # 1. **ISI violation ratio < 0.1**: few spikes closer than the refractory period
-#    (we come back to ISI violations in section 4.5);
+#    (we come back to ISI violations in section 4.6);
 # 2. **a plausible spike waveform**: the waveform of the unit looks like an action potential;
 # 3. **presence ratio > 0**: the unit fires during the session (see below);
 # 4. **amplitude cutoff < 0.1**: few spikes are missed because they are too small.
@@ -272,6 +272,60 @@ ax.legend()
 plt.show()
 
 # %% [markdown]
+# **Advanced: a smoothed density.** The histogram depends on where the bin edges fall, and
+# the areas have different numbers of units, so their counts are hard to compare.
+# Instead, we estimate the **density** of the rates in each area, with a
+# **Savitzky–Golay filter**
+# ([`scipy.signal.savgol_filter`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.savgol_filter.html)):
+# in a sliding window, it fits a polynomial to the data and keeps the value of the polynomial
+# (or of its derivative) at the center of the window.
+#
+# 1. We work with $\log_{10}(\text{rate})$, so that each decade (0.1–1 Hz, 1–10 Hz, ...)
+#    has the same width.
+# 2. We compute the **cumulative distribution** in fine bins (0.02 decade): the fraction of units
+#    with a rate below each value. It goes from 0 to 1 by small steps, one per unit.
+# 3. The density is the **derivative** of the cumulative distribution. The Savitzky–Golay filter
+#    smooths the steps and differentiates at the same time (`deriv=1`). Smoothing the cumulative
+#    distribution works much better than smoothing the counts of a fine histogram: with a few
+#    dozen units, most fine bins have 0 or 1 unit, and the result stays noisy.
+#
+# The area under each curve is 1, whatever the number of units, so the areas can be compared.
+# The two parameters of the filter: `window` (number of bins in the sliding window: larger is
+# smoother) and `polyorder` (degree of the polynomial, smaller than `window`). Try changing them!
+# The ticks at the bottom show the rate of each unit. Careful with ACA: with only a few units,
+# its curve is mostly the shape of the filter.
+
+# %%
+from scipy.signal import savgol_filter
+
+bin_width = 0.02  # width of the fine bins, in decades of rate
+window, polyorder = 75, 2  # Savitzky-Golay parameters: 75 bins = 1.5 decade, quadratic polynomial
+log_bins = np.arange(-2, 2 + bin_width / 2, bin_width)  # bin edges in log10(rate): 0.01 Hz to 100 Hz
+centers = (log_bins[:-1] + log_bins[1:]) / 2  # bin centers, in log10(rate)
+area_colors = {"ACA": "C0", "PL": "C1", "ILA": "C2"}  # same colors as in the histogram above
+
+fig, ax = plt.subplots(figsize=(8, 4))
+for a, color in area_colors.items():
+    log_rates = np.log10(pfc.rate[pfc.area == a])  # log10 of the session rates in this area
+    counts, _ = np.histogram(log_rates, bins=log_bins)
+    cumulative = np.cumsum(counts) / len(log_rates)  # fraction of units below each bin, 0 to 1
+    # Smoothed derivative of the cumulative distribution = density, in fraction of units per decade
+    density = savgol_filter(cumulative, window, polyorder, deriv=1, delta=bin_width, mode="nearest")
+    density = np.clip(density, 0, None)  # the filter can dip slightly below 0 at the edges
+
+    ax.plot(10 ** centers, density, color=color, lw=2, label=f"{a} (n={len(log_rates)})")
+    ax.fill_between(10 ** centers, density, color=color, alpha=0.15, lw=0)
+    # Rug: one small tick per unit, just below the curves
+    ax.plot(10 ** log_rates, np.full(len(log_rates), -0.03), "|", color=color, ms=8, alpha=0.6)
+ax.set_xscale("log")
+ax.axhline(0, color="k", lw=0.5)
+ax.set(xlabel="Session rate (Hz, log scale)", ylabel="Density (fraction of units per decade)",
+       title="Session firing rate of the PFC units, smoothed density")
+ax.legend()
+plt.tight_layout()  # avoid cutting the axis labels
+plt.show()
+
+# %% [markdown]
 # ### 3.2 Two example units with the same rate
 #
 # We now look at two units recorded in the same area and layer (**ILA6a**, infralimbic
@@ -383,6 +437,59 @@ plt.show()
 # (e.g. electrode drift). Keep this in mind when comparing rates!
 
 # %% [markdown]
+# **After the trial onset.** Obviously, what happens before the stimulus is a bit boring:
+# the raster plots **after** the stimulus are much more interesting, to see whether a neuron
+# responds to the stimulus or not. We now align the spikes from 1 s before to 3 s after the
+# trial onset, and shade the trial (0 to 2 s).
+#
+# The trials are not all the same: there are sounds, sounds with optogenetic stimulation, air puffs
+# (with a blue-noise sound), and trials with optogenetic stimulation only. We use the metadata
+# columns of `trials` to give a type to each trial, and **group the rows of the raster by trial
+# type** (inside a group, trials stay in time order). Next to units A and B, we add a third
+# unit, **unit 288** (PL6a), that responds strongly.
+
+# %%
+post_units = {**examples, "unit 288": 288}  # name -> unit id: units A, B and a responsive unit
+colors["unit 288"] = "tab:purple"
+
+# Type of each trial, from the metadata columns of the trials
+trial_type = np.where(trials.airpuff == 1, "air puff",
+                      np.where(trials.sound == 1,
+                               np.where(trials.optogenetics, "sound + opto", "sound"),
+                               "opto only"))
+type_order = ["sound", "sound + opto", "air puff", "opto only"]  # order of the groups in the raster
+order = np.argsort([type_order.index(t) for t in trial_type], kind="stable")  # trials sorted by type
+sorted_onsets = nap.Ts(t=trials.start[order])  # trial onsets, grouped by type
+group_ends = np.cumsum([np.sum(trial_type == t) for t in type_order])  # last row + 1 of each group
+group_starts = np.r_[0, group_ends[:-1]]  # first row of each group
+for t, n in zip(type_order, group_ends - group_starts):
+    print(f"{t}: {n} trials")
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 7), sharey=True)
+for ax, (name, i) in zip(axes, post_units.items()):
+    al = nap.compute_perievent(pfc[i], sorted_onsets, window=(-1, 3))  # 1 s before to 3 s after
+    ax.eventplot([al[k].t for k in al.keys()], colors=colors[name], linewidths=0.5)
+    ax.axvspan(0, 2, color="gray", alpha=0.15, lw=0)  # the trial: 0 to 2 s
+    ax.axvline(0, color="red")
+    for end in group_ends[:-1]:  # a line between two trial types
+        ax.axhline(end - 0.5, color="k", lw=1)
+    ax.set(xlim=(-1, 3), xlabel="Time from trial onset (s)", title=f"{name} ({i})")
+axes[0].set_yticks((group_starts + group_ends) / 2 - 0.5, type_order)  # one label per trial type
+axes[0].set_ylim(len(order) - 0.5, -0.5)  # first trial at the top
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# - **Unit A** fires about the same before and during the trials: it does not seem to respond.
+# - **Unit B** is hard to judge by eye: it is almost silent in the first trials of the session
+#   (most of the "sound" group), and its rate changes over the session.
+# - **Unit 288** fires a sharp burst of spikes about 0.1 s after the onset of the trials, in
+#   **every trial type**, even without a sound. In the air-puff trials, a second response comes
+#   about 0.8 s after the onset.
+#
+# A raster shows the response trial by trial; the PSTH (next section) puts a number on it.
+
+# %% [markdown]
 # ### 3.5 Peri-stimulus time histogram (PSTH)
 #
 # The raster shows each trial, but it is hard to read the rate from it. The **PSTH**
@@ -443,6 +550,144 @@ for row in range(len(bin_sizes)):
     axes[row, 0].set_ylabel("Rate (Hz)")
 plt.tight_layout()
 plt.show()
+
+# %% [markdown]
+# ### 3.6 PSTH of the responses to the sound
+#
+# Now that we know how to build a PSTH, let's use it where it matters: **after the stimulus**.
+# We keep the **sound only** trials (no optogenetics, no air puff, section 3.4), and compute the
+# PSTH of units A, B and 288 from 1 s before to 3 s after the trial onset, with 50 ms bins.
+# The dashed line is the mean rate in the second before the onset (the **baseline**): a response
+# is a departure from it.
+
+# %%
+sound_onsets = nap.Ts(t=trials.start[trial_type == "sound"])  # onsets of the sound only trials
+bin_size = 0.05  # 50 ms bins
+print("sound only trials:", len(sound_onsets))
+
+fig, axes = plt.subplots(2, 3, figsize=(15, 6), sharex=True, height_ratios=[2, 1])
+for col, (name, i) in enumerate(post_units.items()):
+    al = nap.compute_perievent(pfc[i], sound_onsets, window=(-1, 3))  # one Ts per trial
+    counts = al.count(bin_size)  # one row per bin, one column per trial
+    psth = counts.values.sum(axis=1) / (len(al) * bin_size)  # rate in Hz
+    baseline = psth[counts.t < 0].mean()  # mean rate in the second before the onset
+
+    axes[0, col].eventplot([al[k].t for k in al.keys()], colors=colors[name], linewidths=0.5)
+    axes[0, col].set(title=f"{name} ({i}), sound only trials")
+    axes[1, col].bar(counts.t, psth, width=bin_size, color=colors[name])
+    axes[1, col].axhline(baseline, color="k", ls="--", label="baseline")
+    axes[1, col].set(xlim=(-1, 3), xlabel="Time from trial onset (s)")
+    axes[1, col].legend(loc="upper right")
+    for ax in axes[:, col]:
+        ax.axvspan(0, 2, color="gray", alpha=0.15, lw=0)  # the trial: 0 to 2 s
+        ax.axvline(0, color="red")
+axes[0, 0].set_ylabel("Trial")
+axes[1, 0].set_ylabel("Rate (Hz)")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# - **Unit 288** responds clearly to the sound: a sharp peak in the first 0.3 s.
+# - **Unit B** seems to fire more between about 0.5 and 1.2 s after the onset. Careful: it is silent
+#   in the first half of the sound trials (the start of the session), so this bump comes from the
+#   last ~50 trials only.
+# - **Unit A** does not change much.
+#
+# But is the bump of unit B a real response, or just counting noise? And would we see a shorter
+# response with other bins? Answering by eye is not enough: we need a **statistical test**.
+#
+# ### 3.7 Advanced: beyond bins, the ZETA test
+#
+# **The problem with bins.** A PSTH depends on choices that we made ourselves:
+#
+# - the **bin size**: too small and the PSTH is noise, too large and a short response is averaged
+#   out (section 3.5). There is no "right" value, and the result of a test can change with it;
+# - the **bin edges**: moving all the bins by half a bin can split a response in two;
+# - if we test every bin against the baseline, we make **many tests**, and some of them will be
+#   "significant" by chance (multiple comparisons);
+# - if instead we compare the **mean rate** during the trial with the baseline (one test, e.g. a
+#   t-test), we miss responses that do not change the mean: a short burst followed by a pause,
+#   or a change in the *timing* of the spikes rather than their number.
+#
+# **The ZETA test** ([Montijn et al., 2021, *eLife*](https://doi.org/10.7554/eLife.71969),
+# Python package [zetapy](https://github.com/JorritMontijn/zetapy)) asks whether a neuron
+# responds to an event **without any bin**:
+#
+# 1. it pools the spike times of all trials (relative to the event) between 0 and `max_duration`,
+#    and computes their **cumulative distribution**: the fraction of the spikes fired before each time;
+# 2. if the neuron does not respond, spikes are spread evenly in time, and this curve is a straight
+#    line. The **deviation** from the straight line shows when the neuron fires more (the curve rises
+#    faster) or less (it rises slower) than average;
+# 3. the largest deviation is the **ZETA** (Zenith of Event-based Time-locked Anomalies), and its time
+#    is the **latency** of the response;
+# 4. to know if this ZETA is large, the test **jitters** the event times at random many times,
+#    and computes the deviation of these fake trials: this gives the deviations expected *by chance*,
+#    hence a p-value. A **ZETA score** above 2 is significant.
+#
+# ZETA also gives an **instantaneous firing rate**, computed from the spike times at several time
+# scales: a PSTH without bins.
+#
+# We run it on the sound only trials for units A, B and 288, and add **unit C** (302, ACAd5),
+# that we will meet again in the optional section 5. With `[start, end]` for each trial, `zetatest` also gives
+# the p-value of a t-test on the mean rate (trial vs baseline), to compare.
+
+# %%
+from zetapy import zetatest
+
+zeta_units = {**post_units, "unit C": 302}  # name -> unit id: units A, B, 288 and C
+colors["unit C"] = "tab:green"
+sound_trials = np.c_[trials.start, trials.end][trial_type == "sound"]  # [start, end] of each trial
+
+zeta = {}  # name -> (ZETA results, instantaneous rate)
+for name, i in zeta_units.items():
+    np.random.seed(0)  # zetatest jitters at random: fix the seed to get the same p-values for everyone
+    p, zeta_data, rate_data = zetatest(pfc[i].t, sound_trials, max_duration=2.0,
+                                       resampling_number=100, return_rate=True)
+    zeta[name] = (zeta_data, rate_data)
+    print(f"{name} ({i}): ZETA p = {p:.2g} (score {zeta_data['zeta_score']:.1f}, "
+          f"latency {zeta_data['latency_zeta'] * 1000:.0f} ms) | mean-rate t-test p = "
+          f"{zeta_data['ttest_p_value']:.2g}")
+
+fig, axes = plt.subplots(2, 4, figsize=(17, 6.5), sharex=True)
+for col, (name, (zd, rd)) in enumerate(zeta.items()):
+    ax = axes[0, col]
+    # Deviation of 20 jittered resamplings (gray): what we expect by chance
+    for t, dev in list(zip(zd["random_times"], zd["random_deviations"]))[:20]:
+        ax.plot(t, dev, color="gray", lw=0.5, alpha=0.5)
+    ax.plot(zd["spike_time_vector"], zd["real_deviation"], color=colors[name], lw=2)  # the data
+    ax.plot(zd["latency_zeta"], zd["zeta_deviation"], "o", color="k", ms=8)  # the ZETA
+    ax.axhline(0, color="k", lw=0.5)
+    ax.set(title=f"{name} ({zeta_units[name]})\nZETA p = {zd['zeta_p_value']:.2g}, "
+                 f"t-test p = {zd['ttest_p_value']:.2g}")
+
+    ax = axes[1, col]
+    ax.plot(rd["timestamps"], rd["rate_vector"], color=colors[name], lw=1.5)  # rate without bins
+    ax.set(xlim=(0, 2), xlabel="Time from trial onset (s)")
+axes[0, 0].set_ylabel("Deviation from\nuniform spiking")
+axes[1, 0].set_ylabel("Instantaneous rate (Hz)")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# Top: the deviation of the data (color) and of 20 jittered resamplings (gray); the black dot is the
+# ZETA. Where the curve goes **up**, the neuron fires more than average; where it goes **down**,
+# less. (The deviation is centered on 0, so the ZETA can also be the low point just *before* a
+# steep rise, as for unit 288.) Bottom: the instantaneous firing rate.
+#
+# - **Unit 288**: a huge deviation, far outside the jittered ones: both tests agree, it responds.
+# - **Unit A**: the deviation stays close to the jittered ones: no clear response (p ≈ 0.06).
+# - **Unit B**: fires *less* during the first 0.4 s, then more until ~1.5 s. Both tests find
+#   a response (but remember that it comes from the last trials only).
+# - **Unit C**: the most interesting case. ZETA finds a strong response, but the t-test on the mean
+#   rate finds nothing (p ≈ 0.5): the neuron fires a brief burst ~80 ms after the onset, then a bit
+#   less than usual, so the total number of spikes hardly changes. A test on the mean rate
+#   cannot see it.
+#
+# **Questions.**
+#
+# - Plot the binned PSTH of unit C on the sound only trials (as in section 3.6). With which bin
+#   size can you see its response?
+# - Run `zetatest` on the "air puff" trials, or on the "opto only" trials. Do the same units respond?
 
 # %% [markdown]
 # ## 4. Inter-spike intervals (ISIs) and burstiness
@@ -652,14 +897,117 @@ print(f"Poisson ({poisson.rate:.1f} Hz): mean B in ITIs = {B_poisson.mean():+.3f
 # - with only a few ISIs per window, the standard deviation is underestimated.
 #
 # Both make $B$ smaller, and the effect is stronger for slow neurons (fewer ISIs per window).
-# So in the ITIs, the reference for "random firing" is **not** $B = 0$.
+# So in the ITIs, the reference for "random firing" is **not** $B = 0$: keep it in mind when
+# reading the values below. The advanced section 4.5 shows how to correct for this bias.
+
+# %% [markdown]
+# ### 4.4 Burstiness of all PFC units
 #
-# **A reference for each unit: random spike timing.** For every valid window, we keep the
-# number of spikes the unit fired, but we throw these spikes at random times inside the
-# window, and compute $B$. We repeat this many times and average: this is the $B$ that the
-# unit would have if its spikes were placed at random, *with the same number of spikes in
-# each window*. It takes into account the rate of the unit and how it changes from window
-# to window. The **corrected burstiness** is the difference:
+# We now compute the ITI burstiness for every unit. As a last inclusion criterion,
+# a unit needs **at least 4 ISIs in at least 12 separate 3 s windows**: with fewer windows,
+# the mean $B$ is not reliable. The other units get NaN (no value).
+# We store the results as new metadata columns, like we did for the area.
+
+# %%
+min_windows = 12  # minimum number of valid windows per unit
+
+B_iti, n_valid, rate_iti = [], [], []  # one value per unit in each list
+for i in pfc.keys():
+    b = burstiness_per_window(pfc[i], iti, min_isi)
+    n_valid.append(len(b))  # number of windows with at least min_isi ISIs
+    rate_iti.append(pfc[i].restrict(iti).rate)  # spikes in the ITIs / total ITI duration
+    B_iti.append(b.mean() if len(b) >= min_windows else np.nan)  # NaN: not enough windows
+
+pfc.set_info(burstiness_iti=np.array(B_iti), n_valid_windows=np.array(n_valid),
+             rate_iti=np.array(rate_iti))
+
+valid = pfc[pfc.burstiness_iti.notna()]  # units with at least 12 valid windows
+print("units with >= 12 valid windows:", len(valid), "out of", len(pfc))
+print("median B in ITIs:", round(valid.burstiness_iti.median(), 3))
+print(f"for comparison, Poisson train ({poisson.rate:.0f} Hz) in the ITIs: {B_poisson.mean():+.3f}")
+
+# %% [markdown]
+# To compare the areas, we draw the **smoothed density** of $B$ in each area, with the same
+# Savitzky–Golay method as for the firing rates (section 3.1): the derivative of the smoothed
+# cumulative distribution. We write it as a function, to use it again below.
+#
+# On the right, each dot is a unit. The two example units are drawn with their own colors and
+# markers, different from the colors of the areas.
+
+# %%
+def smoothed_density(values, lo, hi, bin_width=0.005, window=41, polyorder=2):
+    """Smoothed density of values between lo and hi (Savitzky-Golay, as in section 3.1).
+
+    Returns the bin centers and the density (area under the curve = 1)."""
+    edges = np.arange(lo, hi + bin_width / 2, bin_width)  # fine bins
+    centers = (edges[:-1] + edges[1:]) / 2
+    cumulative = np.cumsum(np.histogram(values, bins=edges)[0]) / len(values)  # 0 to 1
+    density = savgol_filter(cumulative, window, polyorder, deriv=1, delta=bin_width, mode="nearest")
+    return centers, np.clip(density, 0, None)
+
+
+def plot_density_by_area(ax, units, column, lo, hi):
+    """Smoothed density of a metadata column, one curve per area, and one tick per unit below."""
+    for a, color in area_colors.items():
+        x = units[column][units.area == a].values  # values of the units in this area
+        centers, density = smoothed_density(x, lo, hi)
+        ax.plot(centers, density, color=color, lw=2, label=f"{a} (n={len(x)})")
+        ax.fill_between(centers, density, color=color, alpha=0.15, lw=0)
+        ax.plot(x, np.full(len(x), -0.2), "|", color=color, ms=8, alpha=0.6)  # rug
+    ax.axhline(0, color="k", lw=0.5)
+    ax.set(ylabel="Density")
+
+
+# Colors and markers of the example units in the population plots (not the colors of the areas)
+highlight = {"unit A": ("black", "o"), "unit B": ("tab:red", "s")}
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.5))
+
+# Left: smoothed density of B in the ITIs, one curve per area
+plot_density_by_area(ax1, valid, "burstiness_iti", -0.5, 0.5)
+for name, (color, marker) in highlight.items():  # where the example units are
+    ax1.axvline(pfc.burstiness_iti[examples[name]], color=color, ls="--", lw=1.5, label=name)
+ax1.set(xlabel="Burstiness B in the ITIs", title="Burstiness of PFC units in the ITIs")
+ax1.legend(fontsize=8)
+
+# Right: B against the ITI rate, one dot per unit
+for a, color in area_colors.items():
+    sel = valid.area == a
+    ax2.scatter(valid.rate_iti[sel], valid.burstiness_iti[sel], s=15, color=color, label=a)
+for name, (color, marker) in highlight.items():  # the two example units
+    i = examples[name]
+    ax2.scatter(pfc.rate_iti[i], pfc.burstiness_iti[i], s=150, marker=marker, facecolors="none",
+                edgecolors=color, lw=2, label=name)
+ax2.axhline(0, color="k", ls=":")
+ax2.set_xscale("log")
+ax2.set(xlabel="Rate in the ITIs (Hz, log scale)", ylabel="Burstiness B in the ITIs",
+        title="Burstiness vs rate")
+ax2.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# Most units have $B$ slightly below 0. Remember the Poisson check of section 4.3: in 3 s windows,
+# random firing already gives $B < 0$, and even more so for slow units, which fire fewer spikes per
+# window. So $B < 0$ here does **not** mean that these units fire regularly.
+#
+# **Questions.**
+#
+# - Does burstiness depend on the area? On the rate? On the cell type (`cell_type`: FS or RS)?
+# - Compare the ITI burstiness with the burstiness over the whole session
+#   (`burstiness(pfc[i].time_diff().values)`). Which units change the most?
+# - Change `min_isi` and `min_windows`. How does it change the results?
+
+# %% [markdown]
+# ### 4.5 Advanced: correcting the bias of short windows
+#
+# How do we know whether a unit is more bursty or more regular than random firing, if the
+# reference is not $B = 0$? We build a **reference for each unit: random spike timing**.
+# For every valid window, we keep the number of spikes the unit fired, but we throw these
+# spikes at random times inside the window, and compute $B$. We repeat this many times and
+# average: this is the $B$ that the unit would have if its spikes were placed at random,
+# *with the same number of spikes in each window*. It takes into account the rate of the unit
+# and how it changes from window to window. The **corrected burstiness** is the difference:
 #
 # $$ B_\mathrm{corrected} = B_\mathrm{ITI} - B_\mathrm{random\ timing} $$
 #
@@ -688,34 +1036,16 @@ for name, i in examples.items():
     print(f"{name}: B in ITIs {b:+.3f}, random timing {B_rand:+.3f}, corrected {b - B_rand:+.3f}")
 
 # %% [markdown]
-# ### 4.4 Burstiness of all PFC units
-#
-# We now compute the corrected ITI burstiness for every unit. As a last inclusion criterion,
-# a unit needs **at least 4 ISIs in at least 12 separate 3 s windows**: with fewer windows,
-# the mean $B$ is not reliable. The other units get NaN (no value).
-# We store the results as new metadata columns, like we did for the area.
+# We compute the corrected burstiness of every unit with enough windows (section 4.4), and draw
+# the same two plots.
 
 # %%
-min_windows = 12  # minimum number of valid windows per unit
+B_rand = np.array([random_timing_burstiness(pfc[i], iti, min_isi)
+                   if pfc.n_valid_windows[i] >= min_windows else np.nan for i in pfc.keys()])
+pfc.set_info(burstiness_random=B_rand,
+             burstiness=pfc.burstiness_iti.values - B_rand)  # corrected burstiness
 
-B_iti, B_rand, n_valid, rate_iti = [], [], [], []  # one value per unit in each list
-for i in pfc.keys():
-    b = burstiness_per_window(pfc[i], iti, min_isi)
-    n_valid.append(len(b))  # number of windows with at least min_isi ISIs
-    rate_iti.append(pfc[i].restrict(iti).rate)  # spikes in the ITIs / total ITI duration
-    if len(b) >= min_windows:
-        B_iti.append(b.mean())
-        B_rand.append(random_timing_burstiness(pfc[i], iti, min_isi))
-    else:  # not enough windows: no value
-        B_iti.append(np.nan)
-        B_rand.append(np.nan)
-
-pfc.set_info(burstiness_iti=np.array(B_iti), burstiness_random=np.array(B_rand),
-             burstiness=np.array(B_iti) - np.array(B_rand),  # corrected burstiness
-             n_valid_windows=np.array(n_valid), rate_iti=np.array(rate_iti))
-
-valid = pfc[pfc.burstiness.notna()]  # units with at least 12 valid windows
-print("units with >= 12 valid windows:", len(valid), "out of", len(pfc))
+valid = pfc[pfc.burstiness.notna()]  # same units as in section 4.4
 print("median B in ITIs (not corrected):", round(valid.burstiness_iti.median(), 3))
 print("median corrected B              :", round(valid.burstiness.median(), 3))
 print("more bursty than random timing  :", np.sum(valid.burstiness > 0), "units")
@@ -723,44 +1053,35 @@ print("more regular than random timing :", np.sum(valid.burstiness < 0), "units"
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.5))
 
-# Left: histogram of the corrected B, one line per area
-b_bins = np.linspace(-0.5, 0.5, 41)
-for a in ["ACA", "PL", "ILA"]:
-    ax1.hist(valid.burstiness[valid.area == a], bins=b_bins, histtype="step", lw=2,
-             label=f"{a} (n={np.sum(valid.area == a)})")
+plot_density_by_area(ax1, valid, "burstiness", -0.5, 0.5)
+for name, (color, marker) in highlight.items():
+    ax1.axvline(pfc.burstiness[examples[name]], color=color, ls="--", lw=1.5, label=name)
 ax1.axvline(0, color="k", ls=":", label="random timing")
-ax1.set(xlabel="Corrected burstiness in ITIs", ylabel="Number of units",
-        title="Burstiness of PFC units in the ITIs")
-ax1.legend()
+ax1.set(xlabel="Corrected burstiness in the ITIs", title="Corrected burstiness of PFC units")
+ax1.legend(fontsize=8)
 
-# Right: corrected B against ITI rate, one dot per unit
-for a in ["ACA", "PL", "ILA"]:
+for a, color in area_colors.items():
     sel = valid.area == a
-    ax2.scatter(valid.rate_iti[sel], valid.burstiness[sel], s=15, label=a)
-for name, i in examples.items():  # circle the two example units
-    ax2.scatter(pfc.rate_iti[i], pfc.burstiness[i], s=150, facecolors="none",
-                edgecolors=colors[name], lw=2, label=name)
+    ax2.scatter(valid.rate_iti[sel], valid.burstiness[sel], s=15, color=color, label=a)
+for name, (color, marker) in highlight.items():
+    i = examples[name]
+    ax2.scatter(pfc.rate_iti[i], pfc.burstiness[i], s=150, marker=marker, facecolors="none",
+                edgecolors=color, lw=2, label=name)
 ax2.axhline(0, color="k", ls=":")
 ax2.set_xscale("log")
 ax2.set(xlabel="Rate in the ITIs (Hz, log scale)", ylabel="Corrected burstiness",
-        title="Burstiness vs rate")
+        title="Corrected burstiness vs rate")
 ax2.legend(fontsize=8)
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # Units **above 0** fire more in bursts than random spikes with the same counts;
-# units **below 0** fire more regularly.
-#
-# **Questions.**
-#
-# - Does burstiness depend on the area? On the rate? On the cell type (`cell_type`: FS or RS)?
-# - Compare the corrected ITI burstiness with the burstiness over the whole session
-#   (`burstiness(pfc[i].time_diff().values)`). Which units change the most?
-# - Change `min_isi` and `min_windows`. How does it change the results?
+# units **below 0** fire more regularly. Compare with section 4.4: the correction shifts the
+# values up, especially for the slow units.
 
 # %% [markdown]
-# ### 4.5 Refractory period violations
+# ### 4.6 Refractory period violations
 #
 # A real neuron cannot fire two spikes less than ~1.5 ms apart. If a unit has many ISIs
 # shorter than that, its spikes probably come from **more than one neuron**
@@ -780,7 +1101,9 @@ for name, isi in isis.items():
           f"({100 * n_viol / len(isi):.3f} %)")
 
 # %% [markdown]
-# ## 5. Memory: does an ISI predict the next one?
+# ## 5. OPTIONAL: Memory: does an ISI predict the next one?
+#
+# *This whole section is optional: do it if you have time, or come back to it later.*
 #
 # Burstiness only looks at the **distribution** of the ISIs: it does not change if we
 # shuffle the ISIs in a different order. But the **order** matters too. Two spike trains can
@@ -889,7 +1212,7 @@ plt.show()
 # are not exactly 0 for $M$, or for $B$ in a: small samples are noisy. Rerun the cell to see
 # them change.)
 #
-# **In our data.** We add a third example unit, **unit C** (`302`, ACAd5), which has almost
+# **In our data.** We add a third example unit, **unit C** (`302`, ACAd5, met in section 3.7), which has almost
 # the same burstiness as unit B but a **negative** memory. Below, we draw the 3 s ITI windows
 # with the most spikes for units B and C, as in the figure above. Next to them, the same
 # windows after **shuffling the order of their ISIs**: same ISIs, no memory.
@@ -902,7 +1225,7 @@ isi_windows = {name: isis_per_window(pfc[i], iti, min_isi) for name, i in memory
 for name, isi_list in isi_windows.items():
     n_pairs = sum(len(isi) - 1 for isi in isi_list)  # number of (tau_k, tau_k+1) pairs
     i = memory_units[name]
-    print(f"{name} ({i}, {pfc.location[i]}): corrected B = {pfc.burstiness[i]:+.3f}, "
+    print(f"{name} ({i}, {pfc.location[i]}): B in ITIs = {pfc.burstiness_iti[i]:+.3f}, "
           f"{n_pairs} pairs of consecutive ISIs, M = {memory(isi_list):+.3f}")
 
 n_show = 4  # number of windows to draw per unit
@@ -957,7 +1280,61 @@ plt.show()
 # - **Unit C**: the map has the shape of a **cross**: a short ISI (~10 ms) is followed by a
 #   long one (~100 ms), and a long one by a short one. Few pairs of short ISIs: no long bursts.
 #
-# ### 5.3 A reference for memory: shuffling the ISIs
+# ### 5.3 Memory of all PFC units, and the burstiness–memory plane
+#
+# We compute $M$ for the units that passed all the criteria (at least 4 ISIs in at least
+# 12 windows, section 4.4). Then, following Goh & Barabási (their Fig. 3), we place every unit
+# in the **(memory, burstiness) plane**: the two numbers describe two different ways in which a
+# spike train can depart from a Poisson process. As in section 4.4, the left plot is the smoothed
+# density of $M$ in each area, and the example units have their own colors and markers.
+
+# %%
+pfc.set_info(memory_iti=np.array([memory(isis_per_window(pfc[i], iti, min_isi))
+                                  if pfc.n_valid_windows[i] >= min_windows else np.nan
+                                  for i in pfc.keys()]))
+valid = pfc[pfc.memory_iti.notna()]  # same units as in section 4.4
+print("units:", len(valid))
+print("median memory:", round(valid.memory_iti.median(), 3))
+print("units with positive memory:", np.sum(valid.memory_iti > 0), "out of", len(valid))
+
+highlight["unit C"] = ("tab:brown", "D")  # color and marker of unit C in the population plots
+
+
+def plot_memory_burstiness(valid, m_column, b_column, m_label, b_label, title):
+    """Left: smoothed density of the memory per area. Right: the (memory, burstiness) plane."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    plot_density_by_area(ax1, valid, m_column, -0.4, 0.6)
+    for name, (color, marker) in highlight.items():  # where the example units are
+        ax1.axvline(pfc[m_column][memory_units[name]], color=color, ls="--", lw=1.5, label=name)
+    ax1.axvline(0, color="k", ls=":", label="no memory")
+    ax1.set(xlabel=m_label, title=title)
+    ax1.legend(fontsize=8)
+
+    for a, color in area_colors.items():
+        sel = valid.area == a
+        ax2.scatter(valid[m_column][sel], valid[b_column][sel], s=20, color=color, label=a)
+    for name, (color, marker) in highlight.items():  # the three example units
+        i = memory_units[name]
+        ax2.scatter(pfc[m_column][i], pfc[b_column][i], s=150, marker=marker, facecolors="none",
+                    edgecolors=color, lw=2, label=name)
+    ax2.axhline(0, color="k", ls=":")
+    ax2.axvline(0, color="k", ls=":")
+    ax2.set(xlabel=m_label, ylabel=b_label, title="Burstiness–memory plane")
+    ax2.legend(fontsize=8)
+    plt.tight_layout()
+    plt.show()
+
+
+plot_memory_burstiness(valid, "memory_iti", "burstiness_iti", "Memory M in the ITIs",
+                       "Burstiness B in the ITIs", "Memory of PFC units in the ITIs")
+print("correlation between B and M:",
+      round(np.corrcoef(valid.burstiness_iti, valid.memory_iti)[0, 1], 3))
+
+# %% [markdown]
+# Most units have a **positive memory**: short ISIs tend to follow short ones. But as for $B$,
+# be careful: pooling many short windows biases $M$ (see section 5.4).
+#
+# ### 5.4 Advanced: a reference for memory, shuffling the ISIs
 #
 # Like $B$, $M$ computed over many short windows is not 0 for random firing. When we pool the
 # pairs of all windows, windows where the neuron fires fast give pairs of short ISIs, and
@@ -992,12 +1369,8 @@ poisson_list = isis_per_window(poisson, iti, min_isi)
 print(f"Poisson: M = {memory(poisson_list):+.3f}, shuffled = {memory_shuffled(poisson_list):+.3f}")
 
 # %% [markdown]
-# ### 5.4 Memory of all PFC units, and the burstiness–memory plane
-#
-# We compute the corrected memory for the units that passed all the criteria (at least 4 ISIs
-# in at least 12 windows, section 4.4). Then, following Goh & Barabási (their Fig. 3), we place
-# every unit in the **(memory, burstiness) plane**: the two numbers describe two different
-# ways in which a spike train can depart from a Poisson process.
+# We compute the corrected memory of every unit, and draw the same plots with the **corrected**
+# memory and the **corrected** burstiness (this needs the advanced section 4.5).
 
 # %%
 M_corr = np.full(len(pfc), np.nan)  # one value per unit, NaN for units without enough windows
@@ -1008,36 +1381,14 @@ for k, i in enumerate(pfc.keys()):
 pfc.set_info(memory=M_corr)  # new metadata column: corrected memory
 
 valid = pfc[pfc.memory.notna()]  # same units as in section 4.4
-print("units:", len(valid))
-print("median corrected memory:", round(valid.memory.median(), 3))
-print("units with positive memory:", np.sum(valid.memory > 0), "out of", len(valid))
+print("median memory (not corrected):", round(valid.memory_iti.median(), 3))
+print("median corrected memory      :", round(valid.memory.median(), 3))
+print("units with positive corrected memory:", np.sum(valid.memory > 0), "out of", len(valid))
+
+plot_memory_burstiness(valid, "memory", "burstiness", "Corrected memory M", "Corrected burstiness B",
+                       "Corrected memory of PFC units")
 print("correlation between corrected B and corrected M:",
       round(np.corrcoef(valid.burstiness, valid.memory)[0, 1], 3))
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-
-# Left: histogram of the corrected memory, one line per area
-m_bins = np.linspace(-0.2, 0.4, 31)
-for a in ["ACA", "PL", "ILA"]:
-    ax1.hist(valid.memory[valid.area == a], bins=m_bins, histtype="step", lw=2, label=a)
-ax1.axvline(0, color="k", ls=":", label="no memory")
-ax1.set(xlabel="Corrected memory M", ylabel="Number of units", title="Memory of PFC units in the ITIs")
-ax1.legend()
-
-# Right: the (memory, burstiness) plane, one dot per unit
-for a in ["ACA", "PL", "ILA"]:
-    sel = valid.area == a
-    ax2.scatter(valid.memory[sel], valid.burstiness[sel], s=20, label=a)
-for name, i in memory_units.items():  # circle the three example units
-    ax2.scatter(pfc.memory[i], pfc.burstiness[i], s=150, facecolors="none",
-                edgecolors=colors[name], lw=2, label=name)
-ax2.axhline(0, color="k", ls=":")
-ax2.axvline(0, color="k", ls=":")
-ax2.set(xlabel="Corrected memory M", ylabel="Corrected burstiness B",
-        title="Burstiness–memory plane")
-ax2.legend(fontsize=8)
-plt.tight_layout()
-plt.show()
 
 # %% [markdown]
 # Almost all units have a **positive memory**: in the ITIs, short ISIs tend to follow short

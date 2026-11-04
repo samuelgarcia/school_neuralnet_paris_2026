@@ -2525,6 +2525,8 @@ dependencies = [
     { name = "matplotlib" },
     { name = "pynapple" },
     { name = "remfile" },
+    { name = "scipy" },
+    { name = "zetapy" },
 ]
 
 [package.dev-dependencies]
@@ -2541,6 +2543,8 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "pynapple", specifier = ">=0.11.4" },
     { name = "remfile", specifier = ">=0.1.15" },
+    { name = "scipy", specifier = ">=1.18.1" },
+    { name = "zetapy", specifier = ">=4.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3295,4 +3299,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/af/eb603e6d7f02d16a60b05335ed97a08de4c71f5b109c2a65f3a571d2c4be/zarr_checksum-0.4.7.tar.gz", hash = "sha256:081f163d52533a286bc8249a241da5614b5dab0c06377b208980dc205e272da9", size = 12414, upload-time = "2025-04-01T15:54:48.548Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e3/6b/a57376f2713b79e5f2eb8003ebc569aa3201a36779ee1472404f183e3c87/zarr_checksum-0.4.7-py3-none-any.whl", hash = "sha256:97cbffe2288338f9083f92a2312052f045fb2154a6f4ddbbcb1bde109b6fd22e", size = 15292, upload-time = "2025-04-01T15:54:47.27Z" },
+]
+
+[[package]]
+name = "zetapy"
+version = "4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/b8/df0e0a509d30089d857c99b17f7d6cf5d761b9fd92bf7c2bf6034c8f2513/zetapy-4.1.tar.gz", hash = "sha256:30cc715f5edb23c7a64eb6fe41b480a1a392fa19d0e27cc881520de03f0d87aa", size = 42758, upload-time = "2026-06-04T08:50:01.454Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/81/9b0d99a0709bb36702742f898500f656e3446da8dc465ab379218fa5ca1a/zetapy-4.1-py3-none-any.whl", hash = "sha256:99a38fc1818cbfa5ba1dcc52c37c3b3b5212855eb30165d57f5068c826a5352e", size = 44200, upload-time = "2026-06-04T08:50:00.428Z" },
 ]
