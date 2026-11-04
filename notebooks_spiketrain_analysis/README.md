@@ -26,7 +26,7 @@ If you like Julia like me you might want to try at your own risk the Julia folde
 
 ```bash
 git clone https://github.com/samuelgarcia/school_neuralnet_paris_2026.git
-cd school_neuralnet_paris_2026
+cd school_neuralnet_paris_2026/notebooks_spiketrain_analysis
 ```
 
 ## 2. Python
@@ -51,6 +51,10 @@ uv sync
 This creates `python/.venv` with the exact package versions in `uv.lock`
 (pynapple, h5py, matplotlib, ipykernel, jupytext).
 
+This environment is separate from the SpikeInterface environment at the root of the repo
+(`school_neuralnet_paris_2026/pyproject.toml`). Run the `uv` commands below from `python/`
+(or with `--project python`), not from the repo root, or pynapple will not be found.
+
 ### Register the Jupyter kernel
 
 ```bash
@@ -68,7 +72,8 @@ uv run python -c "import pynapple; print(pynapple.__version__)"
 ### Run
 
 - Script: `uv run python test.py`
-- Notebook: open `python/01_load_spikes_python.ipynb` and select the **Python (minischool)** kernel.
+- Notebook: open `python/01-SpikeRate_and_SpikeIntervals.ipynb` and select the **Python (minischool)** kernel.
+  The `.py` file next to it is the same notebook in jupytext `# %%` format.
 
 Always use `uv run ...` or the **Python (minischool)** kernel. Another Python (system, Homebrew, another venv)
 will not have pynapple and fails with `ModuleNotFoundError: No module named 'pynapple'`.
@@ -122,21 +127,22 @@ To get the latest Judananas from GitHub later: `julia --project=. -e 'using Pkg;
 Any of these works with the kernels above:
 
 - **VS Code** with the Python, Jupyter and Julia extensions.
-- **JupyterLab**, from the repo root:
+- **JupyterLab**, from the `notebooks_spiketrain_analysis/` folder:
 
   ```bash
   uv run --project python --with jupyterlab jupyter lab
   ```
 
-- **Zed** for the `# %%` scripts (`test.py`, `test.jl`): the `.zed/` settings select both kernels
-  for the REPL (run a cell with Cmd+Shift+Enter).
+- **Zed** for the `# %%` scripts (`test.py`, `test.jl`): select the kernels above for the REPL
+  (run a cell with Cmd+Shift+Enter).
 
 ## 5. Data
 
-The NWB file is not in the repo. The notebooks and scripts read it from:
+The NWB files are not in the repo. Each notebook and script reads its file from the `NWB = ...`
+line at the top: change that path to where the file is on your computer.
 
-```
-/Volumes/MorseSSD/NPX_Database/frozen_Aversion_Nat_Submission/216301_20200521-probe0.nwb
-```
-
-If the file is somewhere else, change the `NWB = ...` line at the top of each notebook and script.
+| File | Session |
+|---|---|
+| `python/01-SpikeRate_and_SpikeIntervals.ipynb` | `216300_20200518-probe0.nwb` |
+| `julia/01_load_spikes_julia.ipynb` | `216301_20200521-probe0.nwb` |
+| `python/test.py`, `julia/test.jl` | `986235_20251209_adaptivesensorimotortask_rec.nwb` |

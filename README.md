@@ -36,6 +36,11 @@ uv run code .
 
 If you like traditional virtual environments, please visit [this page](https://github.com/SpikeInterface/spikeinterface/tree/main/installation_tips) to install on your laptop python+spikeinterface.
 
+### Spike train analysis notebooks
+
+The spike train analysis session (pynapple, Python and Julia) has its own environment and
+installation instructions: see [`notebooks_spiketrain_analysis/README.md`](notebooks_spiketrain_analysis/README.md).
+
 
 ## Schedule
 

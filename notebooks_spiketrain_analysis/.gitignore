@@ -1,6 +1,12 @@
 # Environments (rebuilt from pyproject.toml / uv.lock and Project.toml / Manifest.toml)
 .venv/
 
+# The parent repo ignores *uv.lock; keep ours so `uv sync` installs pinned versions
+!python/uv.lock
+
+# LaTeX build files (Texpad)
+.texpadtmp/
+
 # Data and generated outputs
 *.nwb
 DATA/

@@ -220,3 +220,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# macOS and Claude Code local files
+.DS_Store
+.claude/
