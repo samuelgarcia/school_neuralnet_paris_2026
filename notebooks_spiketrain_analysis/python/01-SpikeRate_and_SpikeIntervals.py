@@ -5,15 +5,15 @@
 # Mathematically, a spike train is a *point process*: a series of events in time,
 # where only *when* the events happen matters, not their shape.
 #
-# In this notebook we describe spike trains with two simple but powerful tools:
+# In this notebook we describe spike trains with two simple tools:
 #
 # 1. the **firing rate**: how many spikes a neuron fires per second;
 # 2. the **inter-spike intervals (ISIs)**: the time between two consecutive spikes,
 #    which tells us *how regular* a neuron fires.
 #
-# **Dataset.** Session `216300_20200518-probe0`: a mouse doing an aversive conditioning task
+# **Dataset.** Session `216300_20200518-probe0.nwb`: a mouse doing an aversive conditioning task
 # (sounds, sometimes followed by an air puff) while a Neuropixels probe records in the
-# medial prefrontal cortex (mPFC). Here we focus on three prefrontal areas:
+# medial prefrontal cortex (mPFC). Here we will focus on three prefrontal areas:
 #
 # - **ACA**: anterior cingulate area,
 # - **PL**: prelimbic area,
@@ -22,7 +22,35 @@
 # The data are stored in an **NWB** file (Neurodata Without Borders), a standard format
 # for neurophysiology data, that we read with [pynapple](https://pynapple.org).
 #
-# First we need to import the python packages and give the location of the data (NWB file)
+# ## 0. Get the data
+#
+# The session is shared on the [DANDI Archive](https://dandiarchive.org), the public archive
+# for neurophysiology data, in [Dandiset 000473](https://dandiarchive.org/dandiset/000473)
+# (*Esr1+ hypothalamic-habenula neurons shape aversive states*). We use the file
+# `sub-216300/sub-216300_ses-216300-20200518-probe0_ecephys+ogen.nwb` (5.3 GB).
+#
+# **Option 1 (recommended): download the file** to a folder of your choice on your computer
+# (keep it out of the git repo: it is far too big for GitHub). Either:
+#
+# - in the browser: open the
+#   [files of the Dandiset](https://dandiarchive.org/dandiset/000473/0.261102.1657/files?location=sub-216300),
+#   and click the download icon next to the file;
+# - or in a terminal, from the `python/` folder, with the DANDI command-line tool
+#   (replace `/path/to/your/data/folder` by the folder where you want to save the file):
+#
+#   ```bash
+#   uv run dandi download -o /path/to/your/data/folder "https://api.dandiarchive.org/api/assets/1465c75e-34ee-4f88-954d-656c2aba0550/download/"
+#   ```
+#
+# Then write the full path to the file in `NWB` in the cell below.
+#
+# **Option 2 (advanced): stream the file from DANDI**, without downloading it. Set
+# `STREAM = True` below (`NWB` is then not used). h5py then reads over the internet only the
+# parts of the file that we use (the spike times, the trials, a few unit columns), with the
+# [DANDI Python client](https://dandi.readthedocs.io) and [remfile](https://github.com/flatironinstitute/remfile).
+# It needs a good internet connection, and each read is slower than from a local file.
+#
+# First we need to import the python packages and give the location of the data (NWB file).
 
 # %%
 # numpy: arrays and maths; matplotlib: figures; pynapple: time series and spike trains;
@@ -31,15 +59,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pynapple as nap
 import h5py
+from pathlib import Path
 
-# Path to the NWB file. Change it if the data is somewhere else on your computer.
-NWB = "/Users/pierre/Desktop/frozen_Aversion_Nat_Submission/216300_20200518-probe0.nwb"
+# Option 1: full path to the NWB file you downloaded. Change it to where you saved it.
+NWB = "/path/to/your/data/folder/sub-216300_ses-216300-20200518-probe0_ecephys+ogen.nwb"
+
+# Option 2: set to True to stream the file from the DANDI Archive instead
+STREAM = False
+
+if not STREAM and not Path(NWB).is_file():
+    raise FileNotFoundError(f"No NWB file at {NWB}: set NWB to the downloaded file, or STREAM = True")
+
+# %% [markdown]
+# **Streaming (Option 2 only).** The DANDI client finds the file in the Dandiset and gives its
+# URL on the archive's storage. `remfile.File` makes that URL look like a local file to h5py.
+# If `STREAM = False`, this cell only defines `open_nwb`.
+
+# %%
+if STREAM:
+    import remfile
+    from dandi.dandiapi import DandiAPIClient
+
+    DANDISET, VERSION = "000473", "0.261102.1657"  # Dandiset id and published version
+    ASSET = "sub-216300/sub-216300_ses-216300-20200518-probe0_ecephys+ogen.nwb"
+    with DandiAPIClient() as client:
+        asset = client.get_dandiset(DANDISET, VERSION).get_asset_by_path(ASSET)
+        url = asset.get_content_url(follow_redirects=1, strip_query=True)
+    print("streaming from", url)
+
+
+def open_nwb():
+    """Open the NWB file with h5py: the local file, or the remote one if STREAM is True."""
+    return h5py.File(remfile.File(url) if STREAM else NWB, "r")
 
 # %% [markdown]
 # ## 1. Load the units and the trials
 #
 # `nap.load_file` opens the NWB file and lists what it contains. Nothing heavy is read
 # yet: each object is loaded only when we ask for it with `data["..."]`.
+# (When streaming, we open the file with `pynwb`, the reference NWB library, and give it to
+# `nap.NWBFile`: this is what `nap.load_file` does for a local file.)
 #
 # - `units` is a **`TsGroup`**: a group of spike trains, one per unit (= putative neuron).
 #   Each spike train is a `Ts` object, i.e. a vector of spike times in seconds.
@@ -47,7 +106,11 @@ NWB = "/Users/pierre/Desktop/frozen_Aversion_Nat_Submission/216300_20200518-prob
 #   row per trial, plus extra columns describing each trial.
 
 # %%
-data = nap.load_file(NWB)  # open the file and list its content
+if STREAM:
+    import pynwb
+    data = nap.NWBFile(pynwb.NWBHDF5IO(file=open_nwb()).read())  # remote file
+else:
+    data = nap.load_file(NWB)  # open the file and list its content
 print(data)
 
 units = data["units"]  # all sorted units (TsGroup)
@@ -58,8 +121,9 @@ units
 
 # %% [markdown]
 # Each unit can come with **metadata**: one value per unit, stored as columns of the `TsGroup`.
-# pynapple computes `rate` itself (number of spikes / recording duration). Here it is the
-# only column: we will add the brain area and a quality metric ourselves in section 2.
+# pynapple computes `rate` itself (number of spikes / recording duration). It also reads some
+# columns of the NWB units table (e.g. the electrode `location` and waveform features), but
+# not all of them: we add the cell type and a quality metric ourselves in section 2.
 #
 # Let's look at the trials as well: each row is a trial with its start and end time
 # in seconds, and the extra columns describe the trial (sound, air puff, optogenetics, ...).
@@ -104,7 +168,7 @@ trials
 #   layer, using the Allen atlas names (e.g. `PL6a` = prelimbic area, layer 6a).
 
 # %%
-with h5py.File(NWB, "r") as f:  # open the file read-only; it is closed at the end of the block
+with open_nwb() as f:  # open the file read-only (section 0); it is closed at the end of the block
     isi_fp = f["units/quality"][:, 1]  # 2nd column: ISI violation false-positive rate
     fs = f["units/FS"][:] == 1  # True for fast-spiking waveforms
     rs = f["units/RS"][:] == 1  # True for regular-spiking waveforms
