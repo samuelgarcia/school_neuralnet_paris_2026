@@ -143,6 +143,6 @@ line at the top: change that path to where the file is on your computer.
 
 | File | Session |
 |---|---|
-| `python/01-SpikeRate_and_SpikeIntervals.ipynb` | `216300_20200518-probe0.nwb` |
-| `julia/01_load_spikes_julia.ipynb` | `216301_20200521-probe0.nwb` |
-| `python/test.py`, `julia/test.jl` | `986235_20251209_adaptivesensorimotortask_rec.nwb` |
+| `python/01-SpikeRate_and_SpikeIntervals.ipynb` | `216300_20200518-probe0.nwb or DandiAPIClient` |
+| `julia/01-SpikeRate_and_SpikeIntervals.ipynb` | `216300_20200521-probe0.nwb` |
+
