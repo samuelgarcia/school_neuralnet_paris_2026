@@ -25,8 +25,8 @@ If you like Julia like me you might want to try at your own risk the Julia folde
 ## 1. Get the code
 
 ```bash
-git clone https://github.com/PierreLeMerre/Minischool_GDR2026_SpikeTrains.git
-cd Minischool_GDR2026_SpikeTrains
+git clone https://github.com/samuelgarcia/school_neuralnet_paris_2026.git
+cd school_neuralnet_paris_2026
 ```
 
 ## 2. Python
