@@ -1,0 +1,12 @@
+# Environments (rebuilt from pyproject.toml / uv.lock and Project.toml / Manifest.toml)
+.venv/
+
+# Data and generated outputs
+*.nwb
+DATA/
+units_summary_*.csv
+
+# Editor and OS
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
