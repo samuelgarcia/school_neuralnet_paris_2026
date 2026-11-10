@@ -9,18 +9,24 @@ from spikeinterface_gui import run_mainwindow
 
 
 # change this path to point to the folder your data is in
+# change this path to point to the folder your data is in
+# base_folder = Path("/home/samuel/Documents/DataSpikeSorting/school_neuralnet_2026/")
+base_folder = Path("/mnt/data/sam/DataSpikeSorting/school_neuralnet_2026/")
+# base_folder = Path("/home/pierre/school_neuralnet_2026/")
 
-base_data_folder = Path("/mnt/data/sam/DataSpikeSorting/school_neuralnet_2026")
-# base_data_folder = Path("/home/samuel/Documents/DataSpikeSorting/data_school_neuralnet_paris_2026/")
+data_folder = base_folder / "data"
+name = "sub-A3702_ses-191126-3600s"
+result_folder = base_folder / "results" / name
+result_folder.mkdir(exist_ok=True)
 
+sorter_name = "lupin"
+sorter_name = "kilosort4"
+sorter_name = "dartsort"
 
-analyzer_folder = base_data_folder / 'full_analyzer_lupin_000939.zarr'
-print(analyzer_folder)
-
+analyzer_folder = result_folder / f"analyzer_{sorter_name}"
 
 analyzer = si.load(analyzer_folder)
 print(analyzer)
-
 
 def example1():
     # standard mode
@@ -57,9 +63,9 @@ def example4():
 
 
 if __name__ == '__main__':
-    # example1()
+    example1()
     # example2()
     # example3()
-    example4()
+    # example4()
 
     

@@ -79,20 +79,31 @@ while people are entering the room
 **November 24th - 9:00-12:00 CET**
 
  * Tutorial 3 Spike sort and Analysis(60 min - PierreY)
-    - Run a spike sorter (LUPIN)
+    - Run a spike sorter (LUPIN / Kilosort4 / Dartsort)
     - Create a `SortingAnalyzer` to explore your sorting
     - Compute some extensions
     - Play with the extension outputs
 
  * Tutorial 4 Curation manual : GUI (45 min Sam)
+    - GUI - viewer only
     - GUI - manual curation
+
  * Pause
+
  * Tutorial 5 Curation (60 min - PierreY)
     - Automatic:
       - Simple, threshold-based curation
       - Curation using ML models / Bombcell
       - Merging units
-    - Using GUI  + Automated curation
+
+ * Tutorial 6 Curation manual : GUI (15 min Sam)
+    - generate curation_dict
+    - GUI - semi-automatic curation
+
+ * Tutorial 7 sorter comparison (20min - Sam)
+    - Compare sorter
+    - Compare sorter GUI
+
 
 
 **November 24th - 14:00-18:00 CET**
@@ -101,9 +112,10 @@ while people are entering the room
  * Or spike sorting on theses availables datasets
 
 
-# Overview of available datasets
+# Overview of Bonus datasets for sorting
 
-If you have to pick only one file to download, because of disk usage, it has to be the first one, **M25_D23_2024-11-11_13-11-10_OF1**, since it will be the most used during the Tutorials. The download link is https://filesender.renater.fr/?s=download&token=f94a08b3-e779-4911-90bf-a312c3c34a01
+The download link is https://filesender.renater.fr/?s=download&token=c22f3a9c-d8e8-48e7-814a-a9adcf33cafa
+
 **Please do think about unzipping the data prior to the school!**
 
 ## In vivo
