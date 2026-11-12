@@ -90,13 +90,13 @@ while people are entering the room
 
  * Pause
 
- * Tutorial 5 Curation (60 min - PierreY)
+ * Tutorial 5 Curation (45 min - PierreY)
     - Automatic:
       - Simple, threshold-based curation
       - Curation using ML models / Bombcell
       - Merging units
 
- * Tutorial 6 Curation manual : GUI (15 min Sam)
+ * Tutorial 6 Curation manual : GUI (20 min Sam)
     - generate curation_dict
     - GUI - semi-automatic curation
 

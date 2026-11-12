@@ -41,9 +41,22 @@ def download_dandiset():
                 bar.update(chunk_size)
 
 
+def _fix_probecosmetics(rec):
+    # the nwb file do not have the real probe but only the contact position
+    # here a make a better looking probe
+    # also force the probe to be 2D
+    probe = rec.get_probe()
+    probe = probe.to_2d(axes="xy")
+    n = probe.get_contact_count()
+    probe._contact_shapes = np.array(['rect']*n)
+    probe._contact_shape_params = np.array([{"width": 11.0,"height": 15.0}]*n)
+    probe.create_auto_shape()
+    rec._probegroup.probes[0] = probe
+
 def do_preprocess():
     raw_rec = si.read_nwb_recording(local_nwb_file, electrical_series_path="acquisition/ElectricalSeries")
     print(raw_rec)
+    _fix_probecosmetics(raw_rec)
 
     motion_folder = result_folder / "sub-A3702_ses-191126-motion"
 
@@ -130,7 +143,7 @@ def run_some_analyzers():
         print(analyzer)
 
         analyzer.compute({
-            "random_spikes": {"max_spikes_per_unit": 1000},
+            "random_spikes": {"max_spikes_per_unit": 300},
             "templates": {},
             "waveforms": {},
             "correlograms": {},
@@ -150,3 +163,5 @@ if __name__ == '__main__':
     # do_preprocess()
     # run_some_sorters()
     run_some_analyzers()
+
+
