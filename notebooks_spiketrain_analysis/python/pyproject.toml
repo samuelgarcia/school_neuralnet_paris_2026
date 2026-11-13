@@ -11,6 +11,7 @@ dependencies = [
     "pynapple>=0.11.4",
     "remfile>=0.1.15",
     "scipy>=1.18.1",
+    "spikeinterface>=0.105",
     "zetapy>=4.1",
 ]
 
