@@ -114,7 +114,7 @@ while people are entering the room
 
 # Overview of Bonus datasets for sorting
 
-The download link is https://filesender.renater.fr/?s=download&token=c22f3a9c-d8e8-48e7-814a-a9adcf33cafa
+The download link is https://filesender.renater.fr/?s=download&token=c22f3a9c-d8e8-48e7-814a-a9adcf33cafa (wrong brw) and https://filesender.renater.fr/?s=download&token=ecb68904-4454-4fa2-8c29-2f7834b249a8 (correct brw)
 
 **Please do think about unzipping the data prior to the school!**
 
