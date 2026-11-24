@@ -106,6 +106,8 @@ def open_nwb():
 # %% [markdown]
 # **Load the units and keep the good ones**, with the same quality criteria as in notebook 01
 # (section 2): ISI violation ratio < 0.1, a plausible waveform (FS or RS), and presence ratio > 0.
+# We do not remove the saturation periods here (notebook 01, section 1.1): they last 13 s out of
+# 95 min (0.2 % of the spikes) and overlap only 4 of the 570 trials, so their effect is negligible.
 # This time we keep the units of **all the brain regions** crossed by the probe, because we want to
 # see connections within and between regions. For each unit we also keep its **electrode** and its
 # **depth** (dorso-ventral coordinate, in mm): two units on nearby electrodes are close in the brain.

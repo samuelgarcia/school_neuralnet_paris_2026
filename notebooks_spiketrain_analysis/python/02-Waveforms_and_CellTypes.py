@@ -100,7 +100,10 @@ def open_nwb():
 #
 # As in notebook 01, `nap.load_file` gives the units as a `TsGroup` and the trials as an
 # `IntervalSet`, and we keep the trials of blocks 1–4 (sound, sound + opto, air puff; see the
-# trial structure in notebook 01, section 1). This time, look at the **metadata columns** of the
+# trial structure in notebook 01, section 1).
+# We do not remove the saturation periods here (notebook 01, section 1.1): they fall outside the
+# trials and only touch a few windows between them, so their effect is negligible.
+# This time, look at the **metadata columns** of the
 # units: pynapple already read
 # several **waveform features** stored in the NWB units table (`Peak_to_Trough`, `PeaktoBaseline`,
 # `HW`, `PTR`, ...), one value per unit. We will compute them ourselves in section 2, and compare.

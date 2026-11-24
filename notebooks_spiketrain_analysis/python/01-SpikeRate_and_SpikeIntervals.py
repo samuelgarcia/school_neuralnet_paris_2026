@@ -156,12 +156,87 @@ trials
 # (block 4).
 # The optogenetic-only blocks 5–12 are a different experiment, with other stimulation
 # parameters: we leave them out of this notebook, and keep the 250 trials of blocks 1–4.
-# (The spike trains are not changed: they still cover the whole session.)
+# (The spike trains are not changed: they still cover the whole session, except the saturation
+# periods that we remove just below.)
 
 # %%
 trials = trials[trials.Block <= 4]  # keep the trials of blocks 1 to 4
 print("trials of blocks 1-4:", len(trials))
 print("time of the first and last trial (s):", trials.start[0].round(1), trials.end[-1].round(1))
+
+# %% [markdown]
+# ### 1.1 Exclude the saturation periods
+#
+# Sometimes a large artifact (a movement of the mouse, chewing, an electrical
+# artifact...) pushes the voltage beyond the range of the amplifier: the signal **saturates**,
+# and stays flat at its maximum value. During these periods the spike sorter cannot see
+# the real spikes, and can detect false ones in the artifact. We must not use the spike trains
+# there.
+#
+# The NWB file lists these periods in four series (see the list printed by `nap.load_file` above):
+#
+# - `spike saturation start` / `spike saturation stop`: saturation of the **spike band**
+#   (the high frequencies in which the spikes are detected);
+# - `LFP saturation start` / `LFP saturation stop`: saturation of the **LFP band** (the low
+#   frequencies, below ~300 Hz).
+#
+# Their timestamps are the start and end times of the periods. We exclude both kinds of periods.
+# In this session the spike band never saturates: its two series hold a single `NaN` (Not a
+# Number = no value), that we drop. Other sessions of the Dandiset do have some, so we keep the
+# code general.
+
+# %%
+# Start and end times of all the saturation periods: spike band and LFP band together
+sat_start = np.concatenate([data["spike saturation start"].t, data["LFP saturation start"].t])
+sat_end = np.concatenate([data["spike saturation stop"].t, data["LFP saturation stop"].t])
+is_period = ~np.isnan(sat_start) & ~np.isnan(sat_end)  # drop the NaN (= no period)
+
+saturation = nap.IntervalSet(start=sat_start[is_period], end=sat_end[is_period])
+print(saturation)
+print("total duration of the saturation periods:", round(saturation.tot_length(), 1), "s")
+
+# %% [markdown]
+# **Inclusion and exclusion with `IntervalSet`s.** pynapple can combine `IntervalSet`s like sets:
+#
+# - `a.intersect(b)`: the times that are in `a` **and** in `b` (inclusion);
+# - `a.union(b)`: the times that are in `a` **or** in `b`;
+# - `a.set_diff(b)`: the times that are in `a` but **not** in `b` (exclusion).
+#
+# The clean part of the recording is the time support of the units (the whole recording) **minus**
+# the saturation periods: `set_diff`. Then `restrict` keeps only the spikes inside it.
+# `restrict` also changes the **time support** of the units: it is now made of 10 intervals,
+# with 9 holes. pynapple takes it into account everywhere: the `rate` column is now computed on
+# the clean duration only, and the ISIs (section 4) are computed inside each interval, so no ISI
+# jumps over a hole.
+
+# %%
+clean = units.time_support.set_diff(saturation)  # recording minus the saturation periods
+print(clean)
+
+n_before = sum(len(units[i]) for i in units.keys())  # number of spikes, all units together
+units = units.restrict(clean)  # keep only the spikes inside the clean periods
+n_after = sum(len(units[i]) for i in units.keys())
+print(f"spikes removed: {n_before - n_after} out of {n_before} ({100 * (n_before - n_after) / n_before:.2f} %)")
+
+# %% [markdown]
+# **And the trials?** `intersect` tells us if a trial overlaps a saturation period: it returns
+# the times that are in both (an empty `IntervalSet` if there are none).
+
+# %%
+print("time of the trials inside a saturation period:", trials.intersect(saturation).tot_length(), "s")
+
+# %% [markdown]
+# None of the 250 trials (0 to 2 s after the onset) overlaps a saturation period, so we keep them
+# all. But careful with the **windows** that we build around the trials, e.g. the 3 s before each
+# trial (section 3.3): a few of them do overlap. When we restrict a spike train to a set of windows,
+# its rate is the number of spikes divided by the **full duration** of the windows; a window with a
+# hole would then look less active than it was. So we **drop the windows that overlap a
+# saturation period**, with this small function:
+
+# %%
+def overlaps(windows, periods):
+    """True for each window (row of an IntervalSet) that overlaps one of the periods."""
+    return np.array([len(windows[k].intersect(periods)) > 0 for k in range(len(windows))])
 
 # %% [markdown]
 # ## 2. Filter units: spike sorting, brain region, ...
@@ -264,12 +339,13 @@ pfc.area.value_counts()  # how many units per area
 # ### 3.1 Rate of all units over the whole session
 #
 # Every pynapple object has a **time support**: the `IntervalSet` on which it is defined.
-# For our units, it is the whole recording session. The mean rate of a unit is its number of
+# For our units, it is the whole recording session minus the saturation periods (section 1.1).
+# The mean rate of a unit is its number of
 # spikes divided by the total duration of the time support. pynapple already stores it in the
 # `rate` column, but let's compute it by hand to see that it is that simple.
 
 # %%
-session = pfc.time_support  # IntervalSet: start and end of the recording
+session = pfc.time_support  # IntervalSet: the clean periods of the recording (section 1.1)
 duration = session.tot_length()  # total duration, in seconds
 print(session)
 print("session duration:", round(duration / 60, 1), "min")
@@ -410,7 +486,8 @@ plt.show()
 # optogenetics) are delivered inside the trials, so these windows contain no stimulus.
 #
 # We take **all the trials** (of blocks 1–4), and keep a window only if it does not overlap with the previous
-# trial (in this session the gap between trials is always more than 3 s, so all are kept).
+# trial (in this session the gap between trials is always more than 3 s, so all are kept), and
+# does not overlap a saturation period (section 1.1).
 # `restrict` keeps only the spikes inside these intervals; the rate of the restricted spike
 # train is computed on its new time support: number of windows × 3 s.
 
@@ -420,12 +497,16 @@ pre = 3.0  # length of each window, in seconds, before trial onset
 # End of the previous trial, for each trial (-infinity for the first trial)
 previous_end = np.r_[-np.inf, trials.end[:-1]]
 keep = trials.start - pre >= previous_end  # True if the window starts after the previous trial
+# Also drop the windows that overlap a saturation period (section 1.1)
+keep &= ~overlaps(nap.IntervalSet(start=trials.start - pre, end=trials.start), saturation)
 onsets = trials.start[keep]  # trial start times (s) of the kept windows
 
 # One interval [onset - 3 s, onset] per kept trial
 pre_trial = nap.IntervalSet(start=onsets - pre, end=onsets)
 print(pre_trial)
 print("windows kept:", len(pre_trial), "out of", len(trials), "trials")
+print("trials (blocks) whose window overlaps a saturation period:",
+      list(zip(np.flatnonzero(~keep), trials.Block[~keep].astype(int))))
 print("total duration of the windows:", round(pre_trial.tot_length(), 1), "s")
 
 for name, i in examples.items():
@@ -747,6 +828,8 @@ plt.show()
 #
 # `time_diff` computes the difference between consecutive timestamps: these are the ISIs.
 # The result is a `Tsd` (a time series with values), timed at the middle of each interval.
+# It works inside each interval of the time support: the last spike before a saturation period
+# and the first spike after it do not make an ISI (section 1.1).
 #
 # A useful sanity check: the **mean ISI** should be close to **1 / mean rate**.
 # (They are not exactly equal because the recording does not start and end on a spike.)
@@ -855,10 +938,11 @@ for name, isi in isis.items():
 rng = np.random.default_rng(seed=0)  # random generator with a fixed seed: same result for everyone
 
 n_poisson = len(pfc[examples["unit A"]])  # same number of spikes as unit A
-t_start, t_end = session.start[0], session.end[0]  # same duration as the session
+t_start, t_end = session.start[0], session.end[-1]  # start and end of the recording
 
-# n_poisson random spike times, uniformly distributed over the session, sorted in time
-poisson = nap.Ts(t=np.sort(rng.uniform(t_start, t_end, size=n_poisson)))
+# n_poisson random spike times, uniformly distributed over the recording, sorted in time.
+# Then we remove the saturation periods, as for the real units (a few spikes are lost).
+poisson = nap.Ts(t=np.sort(rng.uniform(t_start, t_end, size=n_poisson))).restrict(session)
 
 print("Poisson rate:", round(poisson.rate, 2), "Hz")
 print(f"Poisson B   : {burstiness(poisson.time_diff().values):+.3f}")

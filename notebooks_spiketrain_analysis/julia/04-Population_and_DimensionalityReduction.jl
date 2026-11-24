@@ -71,6 +71,8 @@ isfile(NWB) || error("No NWB file at $NWB: set NWB to the downloaded file")
 #
 # Same steps as in notebook 01 (sections 1 and 2): the trials of blocks 1–4, and the units of
 # ACA, PL, ILA and ORB that pass the quality criteria. We also keep the trough-to-peak duration
+# We do not remove the saturation periods here (notebook 01, section 1.1): they fall outside the
+# trials and only touch a few windows between them, so their effect is negligible.
 # of the waveform (`Peak_to_Trough`, read by Judananas) to classify the units into **narrow** and
 # **wide** waveforms with the two thresholds of notebook 02 (section 3.1).
 

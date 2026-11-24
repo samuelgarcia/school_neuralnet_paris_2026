@@ -76,6 +76,8 @@ isfile(NWB) || error("No NWB file at $NWB: set NWB to the downloaded file")
 #
 # Same steps as in notebook 01 (sections 1 and 2): the trials of blocks 1–4, and the units of
 # ACA, PL, ILA and ORB that pass the quality criteria.
+# We do not remove the saturation periods here (notebook 01, section 1.1): they fall outside the
+# trials and only touch a few windows between them, so their effect is negligible.
 
 # %%
 data = load_file(NWB)  # open the file and list its content

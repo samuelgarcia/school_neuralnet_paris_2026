@@ -4,7 +4,7 @@
 # In notebook 04 we looked for the main patterns of the population activity, without telling the
 # methods anything about the task. **Decoding** goes the other way: we ask whether the activity of
 # the population **contains information about the task**. We train a classifier to guess, from the
-# spike counts of the units in one trial, a property of this trial, here its **block**:
+# spike counts of the units in one trial, a property of this trial, here its **block** (but it could be many other features):
 #
 # | Block | What happens at the start of the trial |
 # |---|---|
@@ -13,7 +13,7 @@
 # | 3 | the same sound alone, after the conditioning (**post**) |
 # | 4 | a blue noise followed by an air puff (**air puff**) |
 #
-# If the classifier guesses the block of **new trials**, not used to train it, better than chance,
+# The classifier needs to guess the block identity at the trial level. Importantly, the classifier guesses the block of **new trials**, not used to train it, better than chance,
 # the population carries information about the block. We use two classic **linear** classifiers:
 #
 # 1. **linear discriminant analysis (LDA)**;
@@ -70,7 +70,7 @@ from sklearn.metrics import confusion_matrix
 NWB = "/path/to/your/data/folder/sub-156131_ses-156131-20191112-probe0_ecephys+ogen.nwb"
 
 # Option 2: set to True to stream the file from the DANDI Archive instead
-STREAM = False
+STREAM = True
 
 if not STREAM and not Path(NWB).is_file():
     raise FileNotFoundError(f"No NWB file at {NWB}: set NWB to the downloaded file, or STREAM = True")
@@ -96,6 +96,8 @@ def open_nwb():
 #
 # Same steps as in notebook 01 (sections 1 and 2): the trials of blocks 1–4, and the units of
 # ACA, PL, ILA and ORB that pass the quality criteria.
+# We do not remove the saturation periods here (notebook 01, section 1.1): they fall outside the
+# trials and only touch a few windows between them, so their effect is negligible.
 
 # %%
 if STREAM:
@@ -128,13 +130,13 @@ print(pd.Series(block).map(block_names).value_counts().to_string())
 # %% [markdown]
 # ## 2. One trial = one vector of spike counts
 #
-# For each trial, we count the spikes of every unit in the **first second after the onset**:
-# `count` with an `IntervalSet` and no bin size gives one count per interval. The result is a
+# For each trial, we count the spikes of every unit in the **first 2 seconds after the onset**:
+# `count` with an `IntervalSet` and no bin size gives one count per interval. So very important here: we will feed a single count value per unit and per trial (we loose so much temporal information 😭!!). The result is a
 # table of **trials × units**: each trial is a point in a 192-dimensional space, and the block is
 # its label.
 
 # %%
-after = nap.IntervalSet(start=trials.start, end=trials.start + 1)  # 0 to 1 s after each onset
+after = nap.IntervalSet(start=trials.start, end=trials.start + 2)  # 0 to 2 s after each onset
 X = pfc.count(ep=after).values  # trials x units
 y = block
 print("X:", X.shape, "(trials x units) | y:", y.shape)
@@ -145,7 +147,7 @@ im = ax.imshow(z.T, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3, interpolation
 for b in [2, 3, 4]:
     ax.axvline(np.flatnonzero(y == b)[0] - 0.5, color="k", lw=2)  # first trial of each block
 ax.set(xlabel="Trial (in session order; black lines: start of blocks 2, 3, 4)", ylabel="Unit",
-       title="Spike counts 0–1 s after the onset (z-scored)")
+       title="Spike counts 0–2 s after the onset (z-scored)")
 plt.colorbar(im)
 plt.show()
 
@@ -224,7 +226,7 @@ def plot_confusion(ax, y, predicted, title):
 
 
 fig, ax = plt.subplots(figsize=(5, 4.5))
-plot_confusion(ax, y, predicted, f"LDA, 0–1 s after the onset ({100 * accuracy:.0f} %)")
+plot_confusion(ax, y, predicted, f"LDA, 0–2 s after the onset ({100 * accuracy:.0f} %)")
 plt.show()
 
 # %% [markdown]
@@ -268,11 +270,13 @@ plt.show()
 # drift of the probe) also differs between blocks. Is the decoder reading the response to the
 # stimuli, or the time in the session?
 #
-# **Control: decode the block from the second *before* the onset**, when no stimulus has been
-# given yet.
+# **Control: decode the block from the 2 seconds *before* the onset**, when no stimulus has been
+# given yet. We use a window of the same length as after the onset (2 s), so that the counts are
+# comparable. Two trials are always more than 3 s apart: this window never overlaps with the
+# previous trial.
 
 # %%
-before = nap.IntervalSet(start=trials.start - 1, end=trials.start)  # 1 s before each onset
+before = nap.IntervalSet(start=trials.start - 2, end=trials.start)  # 2 s before each onset
 X_before = pfc.count(ep=before).values
 predicted_before, accuracy_before = decode(lda, X_before, y, cv)
 print(f"LDA accuracy before the onset: {accuracy_before:.2f}")
@@ -280,7 +284,7 @@ print(f"LDA accuracy before the onset: {accuracy_before:.2f}")
 # %% [markdown]
 # The block is decoded almost as well **before** the stimulus as after it! Most of what the
 # decoder uses is the slow change of the activity over the session, which we already saw in
-# notebook 04 (PC2, and the trial factors of TCA). Two common fixes:
+# notebook 04 (the state coding direction, and the trial factors of TCA). Two common fixes:
 #
 # 1. **Evoked activity**: subtract, in each trial, the count before the onset from the count
 #    after it (`X - X_before`). What remains is the change caused by the stimulus.
@@ -294,7 +298,7 @@ position = np.concatenate([np.arange(np.sum(y == b)) for b in block_names])  # t
 n_in_block = np.array([np.sum(y == b) for b in y])  # number of trials of the block of each trial
 chunks = PredefinedSplit(position * 5 // n_in_block)  # fold = chunk (0-4) of consecutive trials
 
-windows = {"after (0–1 s)": X, "before (-1–0 s)": X_before, "evoked (after − before)": X - X_before}
+windows = {"after (0–2 s)": X, "before (-2–0 s)": X_before, "evoked (after − before)": X - X_before}
 results = pd.DataFrame({cv_name: {w: decode(lda, Xw, y, folds)[1] for w, Xw in windows.items()}
                         for cv_name, folds in {"random folds": cv, "chunks": chunks}.items()})
 
@@ -327,10 +331,11 @@ plt.show()
 # Before the onset, the few mistakes are between blocks that are **neighbors in time** (block 4
 # taken for block 3, ...): the signature of a slow change over the session.
 #
-# With the evoked activity, the mistakes are mostly between the three **sound** blocks, which
-# start with the same stimulus. Blocks 1 and 3 (the same sound, before and after the conditioning)
-# are still partly separated: the response to the sound may have changed with the conditioning,
-# but this is also where the slow changes of the session are hardest to rule out.
+# With the evoked activity, the mistakes are mostly between blocks **1 and 3**: the same sound
+# alone, before and after the conditioning. Blocks 2 and 4 are recognized by their response to the
+# aversive stimulus (opto or air puff), which comes within the 2 s window. Blocks 1 and 3 are still
+# partly separated: the response to the sound may have changed with the conditioning, but this is
+# also where the slow changes of the session are hardest to rule out.
 #
 # **Take-home message.** A decoder uses **anything** that differs between the classes. Always ask
 # what else differs between them (time in the session, movements, licking, arousal...), and test
@@ -374,7 +379,8 @@ plt.show()
 # - Decode only blocks 1 and 3 (same sound, before and after the conditioning:
 #   `keep = np.isin(y, [1, 3])`). Is the difference still there with the evoked activity? And
 #   before the onset?
-# - Use the window 1–2 s after the onset instead of 0–1 s. Which blocks are best decoded now?
+# - Use the windows 0–1 s and 1–2 s after the onset instead of 0–2 s (and a 1 s window before the
+#   onset). Which blocks are best decoded in each?
 # - **Time-resolved decoding**: decode the block in successive 100 ms bins (with
 #   `nap.build_tensor`, as in notebook 04). When does the accuracy rise above its level before
 #   the onset?

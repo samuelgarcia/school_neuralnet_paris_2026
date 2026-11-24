@@ -82,7 +82,10 @@ isfile(NWB) || error("No NWB file at $NWB: set NWB to the downloaded file")
 #
 # As in notebook 01, `load_file` gives the units as a `TsGroup` and the trials as an
 # `IntervalSet`, and we keep the trials of blocks 1–4 (sound, sound + opto, air puff; see the
-# trial structure in notebook 01, section 1). This time, look at the **metadata columns** of the
+# trial structure in notebook 01, section 1).
+# We do not remove the saturation periods here (notebook 01, section 1.1): they fall outside the
+# trials and only touch a few windows between them, so their effect is negligible.
+# This time, look at the **metadata columns** of the
 # units: Judananas reads every
 # column of the NWB units table, including several **waveform features** (`Peak_to_Trough`,
 # `PeaktoBaseline`, `HW`, `PTR`, ...), one value per unit. We will compute them ourselves in
