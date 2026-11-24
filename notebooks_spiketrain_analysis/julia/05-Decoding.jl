@@ -57,9 +57,10 @@ using Pkg
 Pkg.activate(isfile(joinpath(@__DIR__, "Project.toml")) ? (@__DIR__) : "julia")
 Pkg.instantiate()
 
-# Judananas: time series and spike trains; Plots: figures; Statistics, LinearAlgebra: maths;
+# Judananas: time series and spike trains; HDF5: reads the NWB file; Plots: figures;
+# Statistics, LinearAlgebra: maths;
 # LIBSVM: support vector machines; Random: random numbers
-using Judananas
+using Judananas, HDF5
 using Plots, Statistics, LinearAlgebra, Printf, Random
 using LIBSVM
 gr()

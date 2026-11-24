@@ -235,10 +235,12 @@ plt.show()
 #
 # - **trough-to-peak duration**: the time from the trough to the following peak (the maximum
 #   after the trough). Short for fast-spiking neurons;
-# - **peak-to-baseline duration**: the time from the trough (the main, negative peak of the spike)
-#   until the waveform comes back to the baseline (0 µV: the waveforms are centered on 0 before
-#   the spike). It measures how fast the neuron **repolarizes**. (The file calls the trough the
-#   "peak", hence the name);
+# - **peak-to-baseline duration**: the time from the trough (the main, negative peak of the spike;
+#   the file calls it the "peak", hence the name) until the waveform **first crosses the baseline**
+#   (0 µV: the waveforms are centered on 0 before the spike), on its way up to the positive peak.
+#   It measures how fast the neuron **repolarizes**. Careful: despite its name, it is *not* the
+#   return to the baseline after the positive peak. That slow return lasts longer than the 2.7 ms
+#   of waveform stored in the file for most units (372 out of 420), so it cannot be measured here;
 # - **half-width**: the width of the trough at half of its depth. It measures how fast the
 #   neuron depolarizes *and* repolarizes;
 # - **peak-to-trough ratio**: the height of the peak divided by the trough (negative, since the
@@ -255,7 +257,7 @@ def waveform_features(w, dt):
     trough = np.argmin(w)  # index of the trough
     peak = trough + np.argmax(w[trough:])  # index of the highest point after the trough
     back = np.flatnonzero(w[trough:] >= 0)  # points after the trough at or above the baseline
-    baseline = trough + back[0] if len(back) else len(w) - 1  # first return to the baseline
+    baseline = trough + back[0] if len(back) else len(w) - 1  # first crossing of the baseline (0 µV)
     half = w[trough] / 2  # half of the trough depth
     left, right = trough, trough  # walk left and right from the trough while below half depth
     while left > 0 and w[left - 1] <= half:

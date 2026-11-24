@@ -19,9 +19,8 @@
 # pairs). Testing each CCG for significance multiplies this cost again. So we need both the
 # **theory** (what does a CCG count, how do we know a peak is real?) and **efficient tools**.
 #
-# This notebook is based on the internship work of Matthieu Trollé (ENS de Lyon, 2026), *Efficient
-# cross-correlogram computations for large-scale functional connectivity analysis*. It is the Julia
-# version of `python/03-Crosscorrelograms.ipynb`: same steps, same text, same figures. We:
+# This notebook is the Julia version of `python/03-Crosscorrelograms.ipynb`: same steps, same text,
+# same figures. We:
 #
 # 1. build the CCG from its definition, and see three ways to compute it (counting, a sliding dot
 #    product, the Fourier transform), and what they cost;
@@ -275,10 +274,6 @@ scatter!(fig, lags, ccg_fft, color = TAB[4], markershape = :xcross, markersize =
 # | sliding dot product | duration (in bins) × number of lags | (didactic: it is the definition of a cross-correlation) |
 # | Fourier transform | duration × log(duration), all lags at once | long windows, dense or continuous signals |
 #
-# In Matthieu's internship, two pipelines were compared on 31 recordings: a counting method built on
-# SpikeInterface (**countCCG**) and an FFT method in Rust and Julia (**fftCCG**). For spike trains,
-# counting was the fastest: more than 3 billion pairs in about 10 minutes on a 32-core computer.
-#
 # ### 1.4 What a CCG can show
 #
 # Before looking at real CCGs, the typical shapes and what they suggest:
@@ -511,7 +506,7 @@ fig = plot(panels..., layout = (1, 4), size = (1700, 350))
 # responses to the stimulus) and destroys the precise timing at the scale of a few ms. We repeat it
 # 40 times and average: this is the **jittered CCG**, the CCG expected *without* fast interactions.
 #
-# Following [Siegle et al. (2021)](https://doi.org/10.1038/s41586-020-03171-x) and Matthieu's report,
+# Following [Siegle et al. (2021)](https://doi.org/10.1038/s41586-020-03171-x),
 # the **jitter-corrected CCG** is the difference, divided by the geometric mean of the two firing
 # rates (so that pairs of fast and slow neurons can be compared):
 #
@@ -550,7 +545,7 @@ fig = plot(tops..., bottoms..., layout = (2, 2), size = (1400, 600))
 #
 # ### 5.2 Is the connection significant?
 #
-# We use the rule of Matthieu's report (adapted from Siegle et al., 2021):
+# We use a rule adapted from Siegle et al. (2021):
 #
 # 1. the **baseline** is the corrected CCG far from 0, at lags between 50 and 100 ms on each side:
 #    there, no monosynaptic effect is expected. We measure its mean and standard deviation (SD);
@@ -614,8 +609,8 @@ extra = sum((real .- jit)[in_window])  # extra coincidences in [0.8, 10] ms
 #
 # ### 5.4 Pitfalls: why a human still checks the CCGs
 #
-# An automatic rule is never perfect. In Matthieu's report, every significant pair was checked by eye,
-# and several kinds of false positives came up (his Figure 3):
+# An automatic rule is never perfect: every significant pair should be checked by eye. Several kinds
+# of false positives are common:
 #
 # - **too few spikes**: the CCG is noisy, and a few empty or full bins can pass the threshold;
 # - a **broad increase** around 0: the CCG reflects a population of neurons firing together, not one
@@ -696,8 +691,8 @@ println("CCG 339 → 98, largest difference with section 3: ",
 # −25 and +25 ms, each coincidence of the CCG moves by the same random amount. So **on average**, the
 # jittered CCG is the real CCG **smoothed by a ±25 ms box** (a moving average over 101 bins of
 # 0.5 ms). This is the idea of the convolution method of
-# [Stark & Abeles (2009)](https://doi.org/10.1016/j.jneumeth.2008.12.029), discussed in Matthieu's
-# report: no random numbers, a single CCG per pair. Let's check it on the pair 339 → 98.
+# [Stark & Abeles (2009)](https://doi.org/10.1016/j.jneumeth.2008.12.029): no
+# random numbers, a single CCG per pair. Let's check it on the pair 339 → 98.
 
 # %%
 """Moving average over 2 half + 1 bins along the last dimension (values beyond the edges are
@@ -867,9 +862,9 @@ fig = plot(panels..., layout = (length(k), length(k)), size = (900, 750), left_m
 #
 # ### 6.6 Advanced: does the network change with the task?
 #
-# Functional connectivity can change with the state of the animal. In Matthieu's report, the
-# connections were found separately in each block of the task (section 0), and compared between
-# blocks with the **Jaccard index** of the two sets of connections $A$ and $B$:
+# Functional connectivity can change with the state of the animal. To see it, we find the
+# connections separately in each block of the task (section 0), and compare the blocks with the
+# **Jaccard index** of the two sets of connections $A$ and $B$:
 #
 # $$ J = \frac{|A \cap B|}{|A \cup B|} $$
 #
@@ -900,9 +895,9 @@ fig
 # %% [markdown]
 # Each block is short (7–14 minutes), so far fewer connections pass the significance rule than in the
 # whole session: only the strongest ones (only 2 in block 1). The blocks 2, 3 and 4 are much more
-# similar to each other (0.35 to 0.65) than to block 1 (0.11 to 0.17), the same trend as in Matthieu's
-# report for this recording: after the first aversive stimulation (block 2), the network may stay in a
-# different state. But with so few connections, these numbers are fragile (the Python notebook, with
+# similar to each other (0.35 to 0.65) than to block 1 (0.11 to 0.17). A possible reading: after the
+# first aversive stimulation (block 2), the network may stay in a different state. But with so few
+# connections, these numbers are fragile (the Python notebook, with
 # slightly different bins, finds the same trend with lower values): they would need more recordings,
 # and a statistical test, to be conclusive.
 #
